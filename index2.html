@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolderCoach - Smart Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; text-align: center; color: #333; }
+        .card { background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 25px; max-width: 500px; margin: 20px auto; border-top: 8px solid #3498db; }
+        h1 { color: #2c3e50; margin-bottom: 5px; }
+        .team { color: #3498db; font-weight: bold; margin-bottom: 20px; display: block; }
+        #display-area { background: #000; width: 100%; height: 300px; border-radius: 15px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 3px solid #bdc3c7; }
+        #image-preview { max-width: 100%; max-height: 100%; display: none; }
+        #webcam-container canvas { width: 100% !important; height: auto !important; border-radius: 10px; }
+        .btn-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 14px; }
+        .btn-camera { background: #2ecc71; color: white; }
+        .btn-upload { background: #3498db; color: white; }
+        #result-box { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 15px; border-radius: 10px; background: #ecf0f1; min-height: 40px; }
+        .pass { color: #27ae60; border: 2px solid #27ae60; }
+        .fail { color: #e74c3c; border: 2px solid #e74c3c; }
+        .history-table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 14px; }
+        .history-table th, .history-table td { padding: 10px; border: 1px solid #ddd; text-align: center; }
+        .history-table th { background: #34495e; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>SolderCoach Dashboard 🛠️</h1>
+        <span class="team">فريق Omega | IEEE RAS</span>
+
+        <div id="display-area">
+            <div id="webcam-container"></div>
+            <img id="image-preview" src="#" alt="Preview">
+        </div>
+
+        <div id="result-box">بانتظار الفحص...</div>
+
+        <div class="btn-group">
+            <button class="btn btn-camera" onclick="initWebcam()">تشغيل الكاميرا</button>
+            <button class="btn btn-upload" onclick="document.getElementById('file-input').click()">رفع صورة</button>
+            <input type="file" id="file-input" hidden accept="image/*" onchange="handleFileUpload(event)">
+        </div>
+
+        <table class="history-table">
+            <thead>
+                <tr>
+                    <th>المحاولة</th>
+                    <th>النوع المتوقع</th>
+                    <th>الدقة</th>
+                </tr>
+            </thead>
+            <tbody id="history-body">
+                <tr><td>1</td><td>Good Joint</td><td>98%</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // *** استبدل هذا الرابط برابط موديلك ***
+        const URL =https://teachablemachine.withgoogle.com/models/[...]/; 
+
+        let model, webcam, labelContainer, maxPredictions;
+
+        async function loadModel() {
+            if (!model) {
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+            }
+        }
+
+        // إعداد الكاميرا
+        async function initWebcam() {
+            document.getElementById('image-preview').style.display = 'none';
+            document.getElementById('webcam-container').style.display = 'block';
+            await loadModel();
+            
+            const flip = false;
+            webcam = new tmImage.Webcam(320, 300, flip);
+            await webcam.setup({ facingMode: "environment" });
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+        }
+
+        async function loop() {
+            webcam.update();
+            await predict(webcam.canvas);
+            window.requestAnimationFrame(loop);
+        }
+
+        // التعامل مع رفع صورة
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const imgElement = document.getElementById('image-preview');
+                imgElement.src = e.target.result;
+                imgElement.style.display = 'block';
+                document.getElementById('webcam-container').style.display = 'none';
+                
+                if (webcam) webcam.stop();
+
+                await loadModel();
+                // الانتظار قليلاً للتأكد من تحميل الصورة في العنصر
+                imgElement.onload = async () => {
+                    await predict(imgElement);
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function predict(inputElement) {
+            const prediction = await model.predict(inputElement);
+            prediction.sort((a, b) => b.probability - a.probability);
+            
+            const resultBox = document.getElementById("result-box");
+            const topResult = prediction[0];
+            
+            let statusClass = (topResult.className === "Good Joint") ? "pass" : "fail";
+            resultBox.className = statusClass;
+            resultBox.innerHTML = `النتيجة: ${topResult.className} (${(topResult.probability * 100).toFixed(1)}%)`;
+            
+            // إضافة للسجل (اختياري)
+            if (Math.random() > 0.95) { // لمحاكاة تسجيل البيانات
+                 addToHistory(topResult.className, (topResult.probability * 100).toFixed(1));
+            }
+        }
+
+        function addToHistory(type, acc) {
+            const body = document.getElementById("history-body");
+            const row = `<tr><td>#</td><td>${type}</td><td>${acc}%</td></tr>`;
+            body.innerHTML = row + body.innerHTML;
+        }
+    </script>
+</body>
+</html>

@@ -1,89 +1,114 @@
-<!DOCTYPE html>
-
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>SolderCoach AI</title>
-
-```
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-
-<style>
-    body { font-family: sans-serif; text-align: center; background: #f0f4f8; }
-    h1 { color: #2c3e50; }
-    #webcam-container { margin: 20px; }
-    #result { font-size: 24px; margin-top: 20px; padding: 10px; border-radius: 10px; }
-    .pass { color: green; border: 2px solid green; }
-    .fail { color: red; border: 2px solid red; }
-    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
-</style>
-```
-
-</head>
-
-<body>
-
-<h1>🛠️ SolderCoach AI</h1>
-
-<button onclick="init()">تشغيل الكاميرا</button>
-
-<div id="webcam-container"></div>
-<div id="result">بانتظار التشغيل...</div>
-
 <script>
-const URL = "https://teachablemachine.withgoogle.com/models/ElUsFG2gf/";
+    const MODEL_URL = "https://teachablemachine.withgoogle.com/models/ElUsFG2gf/
+"; 
 
-let model, webcam;
+    let model, webcam, maxPredictions, isWebcamRunning = false;
+    let counter = 1;
 
-async function init() {
-    model = await tmImage.load(URL + "model.json", URL + "metadata.json");
-
-    webcam = new tmImage.Webcam(300, 300, true);
-    await webcam.setup();
-    await webcam.play();
-
-    document.getElementById("webcam-container").innerHTML = "";
-    document.getElementById("webcam-container").appendChild(webcam.canvas);
-
-    window.requestAnimationFrame(loop);
-}
-
-async function loop() {
-    webcam.update();
-    await predict();
-    window.requestAnimationFrame(loop);
-}
-
-async function predict() {
-    const prediction = await model.predict(webcam.canvas);
-
-    prediction.sort((a, b) => b.probability - a.probability);
-
-    const top = prediction[0];
-    const resultBox = document.getElementById("result");
-
-    let label = top.className.toLowerCase();
-    let percent = (top.probability * 100).toFixed(1);
-
-    if (label === "good") {
-        resultBox.className = "pass";
-        resultBox.innerHTML = "✅ Good Joint (" + percent + "%)";
-    } 
-    else if (label === "solder") {
-        resultBox.className = "pass";
-        resultBox.innerHTML = "🛠️ Solder Detected (" + percent + "%)";
-    } 
-    else if (label === "in") {
-        resultBox.className = "fail";
-        resultBox.innerHTML = "⚠️ Incomplete Joint (" + percent + "%)";
-    } 
-    else if (label === "ex") {
-        resultBox.className = "fail";
-        resultBox.innerHTML = "❌ Excess Solder (" + percent + "%)";
+    async function loadModel() {
+        if (!model) {
+            const finalURL = MODEL_URL.endsWith('/') ? MODEL_URL : MODEL_URL + '/';
+            model = await tmImage.load(finalURL + "model.json", finalURL + "metadata.json");
+            maxPredictions = model.getTotalClasses();
+        }
     }
-}
-</script>
 
-</body>
-</html>
+    async function initWebcam() {
+        await loadModel();
+
+        document.getElementById('image-preview').style.display = 'none';
+        document.getElementById('webcam-container').style.display = 'block';
+
+        webcam = new tmImage.Webcam(320, 300, false);
+        await webcam.setup({ facingMode: "environment" });
+        await webcam.play();
+
+        isWebcamRunning = true;
+        document.getElementById("webcam-container").innerHTML = "";
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+
+        window.requestAnimationFrame(webcamLoop);
+    }
+
+    async function webcamLoop() {
+        if (!isWebcamRunning) return;
+
+        webcam.update();
+        await predict(webcam.canvas);
+
+        window.requestAnimationFrame(webcamLoop);
+    }
+
+    async function handleFileUpload(event) {
+        await loadModel();
+
+        const file = event.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            const img = document.getElementById('image-preview');
+            img.src = e.target.result;
+            img.style.display = 'block';
+            document.getElementById('webcam-container').style.display = 'none';
+
+            if (isWebcamRunning && webcam) {
+                isWebcamRunning = false;
+                webcam.stop();
+                webcam = null;
+            }
+
+            img.onload = async () => {
+                await predict(img);
+            };
+        };
+
+        reader.readAsDataURL(file);
+    }
+
+    async function predict(inputElement) {
+        const prediction = await model.predict(inputElement);
+        prediction.sort((a, b) => b.probability - a.probability);
+
+        const resultBox = document.getElementById("result");
+        const topResult = prediction[0];
+
+        let label = topResult.className.toLowerCase();
+        let percentage = (topResult.probability * 100).toFixed(1);
+
+        // 🔥 التحكم بالنتيجة حسب الكلاسات
+        if (label === "good") {
+            resultBox.className = "pass";
+            resultBox.innerHTML = ✅ Good Joint <br><small>${percentage}%</small>;
+        } 
+        else if (label === "solder") {
+            resultBox.className = "pass";
+            resultBox.innerHTML = 🛠️ Solder Detected <br><small>${percentage}%</small>;
+        } 
+        else if (label === "in") {
+            resultBox.className = "fail";
+            resultBox.innerHTML = ⚠️ Incomplete Joint <br><small>${percentage}%</small>;
+        } 
+        else if (label === "ex") {
+            resultBox.className = "fail";
+            resultBox.innerHTML = ❌ Excess Solder <br><small>${percentage}%</small>;
+        }
+
+        if (!isWebcamRunning) {
+            addToHistory(label, percentage);
+        }
+    }
+
+    function addToHistory(type, acc) {
+        const body = document.getElementById("history-body");
+
+        const row = `
+            <tr>
+                <td>${counter++}</td>
+                <td>${type}</td>
+                <td>${acc}%</td>
+            </tr>
+        `;
+
+        body.innerHTML = row + body.innerHTML;
+    }
+</script>

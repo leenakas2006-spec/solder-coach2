@@ -3,34 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SolderCoach - Smart Dashboard</title>
+    <title>SolderCoach - Omega Team Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f4f8; margin: 0; padding: 20px; text-align: center; color: #333; }
-        .card { background: white; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); padding: 25px; max-width: 500px; margin: 20px auto; border-top: 8px solid #3498db; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; text-align: center; color: #333; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 10px solid #3498db; }
         h1 { color: #2c3e50; margin-bottom: 5px; }
-        .team { color: #3498db; font-weight: bold; margin-bottom: 20px; display: block; }
-        #display-area { background: #000; width: 100%; height: 300px; border-radius: 15px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 3px solid #bdc3c7; }
-        #image-preview { max-width: 100%; max-height: 100%; display: none; }
+        .team-tag { color: #3498db; font-weight: bold; margin-bottom: 25px; display: block; }
+        #display-area { background: #000; width: 100%; height: 350px; border-radius: 15px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 4px solid #ecf0f1; position: relative; }
+        #image-preview { max-width: 100%; max-height: 100%; display: none; object-fit: contain; }
         #webcam-container canvas { width: 100% !important; height: auto !important; border-radius: 10px; }
-        .btn-group { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 14px; }
-        .btn-camera { background: #2ecc71; color: white; }
+        .btn-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn { padding: 15px 25px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 16px; flex: 1; min-width: 150px; }
+        .btn-camera { background: #27ae60; color: white; }
         .btn-upload { background: #3498db; color: white; }
-        #result-box { font-size: 24px; font-weight: bold; margin-top: 20px; padding: 15px; border-radius: 10px; background: #ecf0f1; min-height: 40px; }
-        .pass { color: #27ae60; border: 2px solid #27ae60; }
-        .fail { color: #e74c3c; border: 2px solid #e74c3c; }
-        .history-table { width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 14px; }
-        .history-table th, .history-table td { padding: 10px; border: 1px solid #ddd; text-align: center; }
-        .history-table th { background: #34495e; color: white; }
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        #result-box { font-size: 26px; font-weight: bold; margin-top: 10px; padding: 20px; border-radius: 12px; background: #fdfdfd; min-height: 50px; border: 2px dashed #bdc3c7; transition: 0.5s; }
+        .pass { background: #d4edda !important; color: #155724; border-color: #28a745 !important; }
+        .fail { background: #f8d7da !important; color: #721c24; border-color: #dc3545 !important; }
+        .loading { color: #f39c12; }
     </style>
 </head>
 <body>
 
-    <div class="card">
+    <div class="container">
         <h1>SolderCoach Dashboard 🛠️</h1>
-        <span class="team">فريق Omega | IEEE RAS</span>
+        <span class="team-tag">فريق Omega | IEEE RAS</span>
 
         <div id="display-area">
             <div id="webcam-container"></div>
@@ -40,57 +39,106 @@
         <div id="result-box">بانتظار الفحص...</div>
 
         <div class="btn-group">
-            <button class="btn btn-camera" onclick="initWebcam()">تشغيل الكاميرا</button>
+            <button class="btn btn-camera" onclick="startCamera()">تشغيل الكاميرا</button>
             <button class="btn btn-upload" onclick="document.getElementById('file-input').click()">رفع صورة</button>
             <input type="file" id="file-input" hidden accept="image/*" onchange="handleFileUpload(event)">
         </div>
 
-        <table class="history-table">
-            <thead>
-                <tr>
-                    <th>المحاولة</th>
-                    <th>النوع المتوقع</th>
-                    <th>الدقة</th>
-                </tr>
-            </thead>
-            <tbody id="history-body">
-                <tr><td>1</td><td>Good Joint</td><td>98%</td></tr>
-            </tbody>
-        </table>
+        <p style="font-size: 14px; color: #7f8c8d;">نظام ذكاء اصطناعي لتقييم جودة نقاط اللحام</p>
     </div>
 
     <script>
-        // *** ضع الرابط الجديد هنا وتأكد من وجود الشرطة المائلة في النهاية ***
-const URL = "https://teachablemachine.withgoogle.com/models/[...]"; 
+        // *** 1. استبدل هذا الرابط برابط الموديل الجديد الخاص بك ***
+        const MODEL_URL = "<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolderCoach - Omega Team Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; text-align: center; color: #333; }
+        .container { max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 10px solid #3498db; }
+        h1 { color: #2c3e50; margin-bottom: 5px; }
+        .team-tag { color: #3498db; font-weight: bold; margin-bottom: 25px; display: block; }
+        #display-area { background: #000; width: 100%; height: 350px; border-radius: 15px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 4px solid #ecf0f1; position: relative; }
+        #image-preview { max-width: 100%; max-height: 100%; display: none; object-fit: contain; }
+        #webcam-container canvas { width: 100% !important; height: auto !important; border-radius: 10px; }
+        .btn-group { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; margin-bottom: 20px; }
+        .btn { padding: 15px 25px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; transition: 0.3s; font-size: 16px; flex: 1; min-width: 150px; }
+        .btn-camera { background: #27ae60; color: white; }
+        .btn-upload { background: #3498db; color: white; }
+        .btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        #result-box { font-size: 26px; font-weight: bold; margin-top: 10px; padding: 20px; border-radius: 12px; background: #fdfdfd; min-height: 50px; border: 2px dashed #bdc3c7; transition: 0.5s; }
+        .pass { background: #d4edda !important; color: #155724; border-color: #28a745 !important; }
+        .fail { background: #f8d7da !important; color: #721c24; border-color: #dc3545 !important; }
+        .loading { color: #f39c12; }
+    </style>
+</head>
+<body>
 
-// هذا السطر يضمن إضافة الشرطة المائلة تلقائياً إذا كانت ناقصة
-const finalURL = URL.endsWith('/') ? URL : URL + '/';
+    <div class="container">
+        <h1>SolderCoach Dashboard 🛠️</h1>
+        <span class="team-tag">فريق Omega | IEEE RAS</span>
 
-let model, webcam, labelContainer, maxPredictions;
+        <div id="display-area">
+            <div id="webcam-container"></div>
+            <img id="image-preview" src="#" alt="Preview">
+        </div>
 
-async function loadModel() {
-    if (!model) {
-        // نستخدم finalURL لضمان دمج المسار بشكل صحيح مع ملفات الـ json
-        const modelURL = finalURL + "model.json";
-        const metadataURL = finalURL + "metadata.json";
-        
-        model = await tmImage.load(modelURL, metadataURL);
-        maxPredictions = model.getTotalClasses();
-    }
-}
+        <div id="result-box">بانتظار الفحص...</div>
 
-        // إعداد الكاميرا
-        async function initWebcam() {
+        <div class="btn-group">
+            <button class="btn btn-camera" onclick="startCamera()">تشغيل الكاميرا</button>
+            <button class="btn btn-upload" onclick="document.getElementById('file-input').click()">رفع صورة</button>
+            <input type="file" id="file-input" hidden accept="image/*" onchange="handleFileUpload(event)">
+        </div>
+
+        <p style="font-size: 14px; color: #7f8c8d;">نظام ذكاء اصطناعي لتقييم جودة نقاط اللحام</p>
+    </div>
+
+    <script>
+        // *** 1. استبدل هذا الرابط برابط الموديل الجديد الخاص بك ***
+        const MODEL_URL = "https://teachablemachine.withgoogle.com/models/[...]"; 
+
+        let model, webcam, maxPredictions;
+
+        // تحميل الموديل عند الطلب
+        async function loadModel() {
+            const resultBox = document.getElementById("result-box");
+            if (!model) {
+                resultBox.innerHTML = '<span class="loading">جاري تحميل الذكاء الاصطناعي... ⏳</span>';
+                try {
+                    // التأكد من إضافة الشرطة المائلة
+                    const finalURL = MODEL_URL.endsWith('/') ? MODEL_URL : MODEL_URL + '/';
+                    model = await tmImage.load(finalURL + "model.json", finalURL + "metadata.json");
+                    maxPredictions = model.getTotalClasses();
+                    resultBox.innerHTML = "الموديل جاهز ✅";
+                } catch (e) {
+                    resultBox.innerHTML = "خطأ في تحميل الموديل ❌";
+                    console.error(e);
+                }
+            }
+        }
+
+        // تشغيل الكاميرا
+        async function startCamera() {
+            await loadModel();
             document.getElementById('image-preview').style.display = 'none';
             document.getElementById('webcam-container').style.display = 'block';
-            await loadModel();
             
-            const flip = false;
-            webcam = new tmImage.Webcam(320, 300, flip);
-            await webcam.setup({ facingMode: "environment" });
-            await webcam.play();
-            window.requestAnimationFrame(loop);
-            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            try {
+                const flip = false;
+                webcam = new tmImage.Webcam(320, 350, flip);
+                await webcam.setup({ facingMode: "environment" }); // الكاميرا الخلفية
+                await webcam.play();
+                document.getElementById("webcam-container").innerHTML = "";
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                window.requestAnimationFrame(loop);
+            } catch (err) {
+                alert("تعذر فتح الكاميرا: " + err);
+            }
         }
 
         async function loop() {
@@ -99,10 +147,12 @@ async function loadModel() {
             window.requestAnimationFrame(loop);
         }
 
-        // التعامل مع رفع صورة
+        // معالجة رفع الصور
         async function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+
+            await loadModel();
 
             const reader = new FileReader();
             reader.onload = async function(e) {
@@ -111,10 +161,11 @@ async function loadModel() {
                 imgElement.style.display = 'block';
                 document.getElementById('webcam-container').style.display = 'none';
                 
-                if (webcam) webcam.stop();
+                if (webcam) {
+                    webcam.stop();
+                }
 
-                await loadModel();
-                // الانتظار قليلاً للتأكد من تحميل الصورة في العنصر
+                // تحليل الصورة بمجرد تحميلها
                 imgElement.onload = async () => {
                     await predict(imgElement);
                 };
@@ -122,27 +173,116 @@ async function loadModel() {
             reader.readAsDataURL(file);
         }
 
+        // التنبؤ والنتيجة
         async function predict(inputElement) {
+            if (!model) return;
             const prediction = await model.predict(inputElement);
             prediction.sort((a, b) => b.probability - a.probability);
             
             const resultBox = document.getElementById("result-box");
             const topResult = prediction[0];
             
-            let statusClass = (topResult.className === "Good Joint") ? "pass" : "fail";
-            resultBox.className = statusClass;
-            resultBox.innerHTML = `النتيجة: ${topResult.className} (${(topResult.probability * 100).toFixed(1)}%)`;
-            
-            // إضافة للسجل (اختياري)
-            if (Math.random() > 0.95) { // لمحاكاة تسجيل البيانات
-                 addToHistory(topResult.className, (topResult.probability * 100).toFixed(1));
+            // تغيير اللون بناءً على النتيجة (إذا كانت البداية Good Joint)
+            if (topResult.className.toLowerCase().includes("good")) {
+                resultBox.className = "pass";
+                resultBox.innerHTML = `النتيجة: ممتازة ✅ <br> <small>${topResult.className} (${(topResult.probability * 100).toFixed(1)}%)</small>`;
+            } else {
+                resultBox.className = "fail";
+                resultBox.innerHTML = `تحذير: لحام خاطئ ❌ <br> <small>${topResult.className} (${(topResult.probability * 100).toFixed(1)}%)</small>`;
+            }
+        }
+    </script>
+</body>
+</html>"; 
+
+        let model, webcam, maxPredictions;
+
+        // تحميل الموديل عند الطلب
+        async function loadModel() {
+            const resultBox = document.getElementById("result-box");
+            if (!model) {
+                resultBox.innerHTML = '<span class="loading">جاري تحميل الذكاء الاصطناعي... ⏳</span>';
+                try {
+                    // التأكد من إضافة الشرطة المائلة
+                    const finalURL = MODEL_URL.endsWith('/') ? MODEL_URL : MODEL_URL + '/';
+                    model = await tmImage.load(finalURL + "model.json", finalURL + "metadata.json");
+                    maxPredictions = model.getTotalClasses();
+                    resultBox.innerHTML = "الموديل جاهز ✅";
+                } catch (e) {
+                    resultBox.innerHTML = "خطأ في تحميل الموديل ❌";
+                    console.error(e);
+                }
             }
         }
 
-        function addToHistory(type, acc) {
-            const body = document.getElementById("history-body");
-            const row = `<tr><td>#</td><td>${type}</td><td>${acc}%</td></tr>`;
-            body.innerHTML = row + body.innerHTML;
+        // تشغيل الكاميرا
+        async function startCamera() {
+            await loadModel();
+            document.getElementById('image-preview').style.display = 'none';
+            document.getElementById('webcam-container').style.display = 'block';
+            
+            try {
+                const flip = false;
+                webcam = new tmImage.Webcam(320, 350, flip);
+                await webcam.setup({ facingMode: "environment" }); // الكاميرا الخلفية
+                await webcam.play();
+                document.getElementById("webcam-container").innerHTML = "";
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                window.requestAnimationFrame(loop);
+            } catch (err) {
+                alert("تعذر فتح الكاميرا: " + err);
+            }
+        }
+
+        async function loop() {
+            webcam.update();
+            await predict(webcam.canvas);
+            window.requestAnimationFrame(loop);
+        }
+
+        // معالجة رفع الصور
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            await loadModel();
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const imgElement = document.getElementById('image-preview');
+                imgElement.src = e.target.result;
+                imgElement.style.display = 'block';
+                document.getElementById('webcam-container').style.display = 'none';
+                
+                if (webcam) {
+                    webcam.stop();
+                }
+
+                // تحليل الصورة بمجرد تحميلها
+                imgElement.onload = async () => {
+                    await predict(imgElement);
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // التنبؤ والنتيجة
+        async function predict(inputElement) {
+            if (!model) return;
+            const prediction = await model.predict(inputElement);
+            prediction.sort((a, b) => b.probability - a.probability);
+            
+            const resultBox = document.getElementById("result-box");
+            const topResult = prediction[0];
+            
+            // تغيير اللون بناءً على النتيجة (إذا كانت البداية Good Joint)
+            if (topResult.className.toLowerCase().includes("good")) {
+                resultBox.className = "pass";
+                resultBox.innerHTML = `النتيجة: ممتازة ✅ <br> <small>${topResult.className} (${(topResult.probability * 100).toFixed(1)}%)</small>`;
+            } else {
+                resultBox.className = "fail";
+                resultBox.innerHTML = `تحذير: لحام خاطئ ❌ <br> <small>${topResult.className} (${(topResult.probability * 100).toFixed(1)}%)</small>`;
+            }
         }
     </script>
 </body>

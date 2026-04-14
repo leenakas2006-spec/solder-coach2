@@ -60,19 +60,24 @@
     </div>
 
     <script>
-        // *** استبدل هذا الرابط برابط موديلك ***
-        const URL =https://teachablemachine.withgoogle.com/models/[...]/; 
+        // *** ضع الرابط الجديد هنا وتأكد من وجود الشرطة المائلة في النهاية ***
+const URL = "https://teachablemachine.withgoogle.com/models/[...]"; 
 
-        let model, webcam, labelContainer, maxPredictions;
+// هذا السطر يضمن إضافة الشرطة المائلة تلقائياً إذا كانت ناقصة
+const finalURL = URL.endsWith('/') ? URL : URL + '/';
 
-        async function loadModel() {
-            if (!model) {
-                const modelURL = URL + "model.json";
-                const metadataURL = URL + "metadata.json";
-                model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
-            }
-        }
+let model, webcam, labelContainer, maxPredictions;
+
+async function loadModel() {
+    if (!model) {
+        // نستخدم finalURL لضمان دمج المسار بشكل صحيح مع ملفات الـ json
+        const modelURL = finalURL + "model.json";
+        const metadataURL = finalURL + "metadata.json";
+        
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+    }
+}
 
         // إعداد الكاميرا
         async function initWebcam() {
